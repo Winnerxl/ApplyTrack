@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ApplyTrack · İş Başvuru Takip</title>
+  <meta name="description" content="ApplyTrack — Başvurularınızı tablo, zaman grafiği ve Avrupa haritası ile takip edin. Wishlist ile düşündüğünüz pozisyonları kaydedin ve tek tıkla başvuruya taşıyın. Veriler localStorage'da kalır.">
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+
+  <style>
+    :root { --bg:#f8fafc; --card:#fff; --text:#0f172a; --muted:#475569; --accent:#2563eb; --border:#e2e8f0 }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);transition:background .25s,color .25s}
+    :root[data-theme="dark"]{ --bg:#0b1220; --card:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --accent:#60a5fa; --border:#1f2937 }
+
+    /* Üst başlık */
+    header{padding:18px 22px;border-bottom:1px solid var(--border);background:#ffffffcc;backdrop-filter:blur(8px);position:sticky;top:0;z-index:9}
+    :root[data-theme="dark"] header{background:#0f172acc}
+    .wrap{max-width:1200px;margin:0 auto;padding:18px 22px}
+    h1{font-size:28px;margin:0 0 6px;letter-spacing:.2px}
+    .sub{color:var(--muted);font-size:14px}
+
+    /* Kart ve bölüm düzeni */
+    .section{margin-top:22px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 8px 24px rgba(2,6,23,.06);transition:box-shadow .2s, transform .2s, background .25s, border-color .25s}
+    .card:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(2,6,23,.1)}
+    .card .body{padding:20px}
+
+    /* Form & genel arayüz */
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:820px){.row{grid-template-columns:1fr}}
+    label{display:block;font-size:13px;color:#64748b;margin-bottom:6px}
+    input,select,textarea{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px;background:#fff;font-size:15px;transition:border-color .2s, box-shadow .2s, background .25s, color .25s}
+    :root[data-theme="dark"] input,:root[data-theme="dark"] select,:root[data-theme="dark"] textarea{background:#0b1324;color:var(--text)}
+    input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent)}
+    textarea{min-height:96px;resize:vertical}
+    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    .btn{appearance:none;border:1px solid var(--border);background:#fff;color:#0f172a;padding:12px 16px;border-radius:12px;cursor:pointer;font-weight:600;font-size:14px;transition:background .2s, color .2s, border-color .2s, transform .05s;display:inline-flex;align-items:center;line-height:1}
+    .btn:hover{background:#f8fafc}
+    .btn:active{transform:translateY(1px)}
+    .btn.primary{background:var(--accent);color:#fff;border-color:transparent}
+    .btn.primary:hover{filter:brightness(1.05)}
+    :root[data-theme="dark"] .btn{background:#0b1324;color:var(--text)}
+    
+    /* Üst uyarı banner'ı */
+	.banner{margin-top:12px;padding:10px 12px;border:1px solid var(--border);border-radius:12px;
+	  background:color-mix(in srgb, #f59e0b 14%, var(--card));display:none;align-items:center;gap:10px}
+	:root[data-theme="dark"] .banner{background:color-mix(in srgb, #f59e0b 20%, var(--card))}
+	.banner.show{display:flex}
+	.banner .msg{flex:1;font-size:14px}
+	.btn.sm{padding:6px 10px;font-size:12px}
+
+    /* Büyük görselleştirme alanları */
+    #map{width:100%;height:560px;border-radius:14px;overflow:hidden;background-color:color-mix(in srgb, var(--bg) 96%, #0000);display:flex;align-items:center;justify-content:center;transition:background .25s}
+    #trend{width:100%;height:320px;border-radius:14px;overflow:hidden;background-color:color-mix(in srgb, var(--bg) 96%, #0000);margin-top:14px;transition:background .25s}
+
+    /* Özet kutuları */
+    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    @media (max-width:820px){.stats{grid-template-columns:repeat(2,1fr)}}
+    .pill{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:#fff}
+    :root[data-theme="dark"] .pill{background:#0b1324}
+    .k{font-size:12px;color:#475569}
+    .v{font-size:24px;font-weight:800}
+
+    /* Tablo */
+    .table-wrap{overflow:auto;max-height:600px;border:1px solid var(--border);border-radius:14px;background:#fff;transition:background .25s}
+    :root[data-theme="dark"] .table-wrap{background:#0b1324}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:12px 10px;text-align:left;font-size:15px;vertical-align:top}
+    th{background:#f1f5f9;position:sticky;top:0;z-index:1;user-select:none;cursor:pointer}
+    :root[data-theme="dark"] th{background:#111827;color:var(--text)}
+    tbody tr:nth-child(even){background:color-mix(in srgb, var(--bg) 96%, #0000)}
+    tbody tr:hover{background:color-mix(in srgb, var(--accent) 12%, transparent)}
+    th .sort{font-size:11px;color:#64748b;margin-left:6px}
+
+    /* Etiketler */
+    .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid var(--border);transition:background .2s,color .2s,border-color .2s}
+    .tag.Remote{background:#eff6ff;color:#1d4ed8}.tag.Hibrit{background:#ecfeff;color:#0891b2}.tag.On-site{background:#fefce8;color:#b45309}
+    .status{font-weight:700}
+    .st-Gönderildi{color:#475569}.st-Ret{color:#ef4444}.st-Mülakat{color:#f59e0b}.st-Kabul{color:#10b981}
+
+    /* Aramalı dropdown (ülke) */
+    .combo{position:relative}
+    .combo-input{width:100%;padding:12px 14px;border:1px solid var(--border);border-radius:12px}
+    .combo-list{position:absolute;left:0;right:0;top:calc(100% + 6px);max-height:260px;overflow:auto;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 10px 24px rgba(2,6,23,.12);z-index:20;display:none}
+    .combo-item{padding:10px 12px;cursor:pointer}
+    .combo-item[aria-selected="true"], .combo-item:hover{background:#eff6ff}
+    .combo-empty{padding:10px 12px;color:#64748b}
+
+    /* Filtre alanı */
+    .filters{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:12px}
+    @media (max-width:1200px){.filters{grid-template-columns:repeat(3,1fr)}}
+    @media (max-width:700px){.filters{grid-template-columns:1fr}}
+    .muted{font-size:12px;color:#64748b}
+
+    /* Basit doğrulama vurgusu */
+    input.invalid, select.invalid, textarea.invalid, .combo-input.invalid{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.15)}
+
+    /* Küçük bildirim tost'u */
+    #toast{position:fixed;right:16px;bottom:16px;background:#0f172a;color:#fff;padding:10px 12px;border-radius:10px;opacity:0;pointer-events:none;transform:translateY(10px);transition:opacity .2s, transform .2s;z-index:99}
+    #toast.show{opacity:1;transform:translateY(0)}
+    #toast.interactive{pointer-events:auto}
+    #toast .btn{margin-left:8px;padding:6px 10px;font-size:12px}
+
+    /* Wishlist küçük stiller */
+    .priority-badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px}
+    .priority-low{background:#ecfeff}
+    .priority-med{background:#f1f5f9}
+    .priority-high{background:#fee2e2}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <div>
+        <h1>ApplyTrack</h1>
+		<div class="sub">İş başvurularını harita + zaman grafiği + wishlist ile takip et</div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="exportBtn">Dışa Aktar (.json)</button>
+        <button class="btn" id="exportCsvBtn">Dışa Aktar (.csv)</button>
+        <button class="btn" id="importBtn" type="button">İçe Aktar (.json)</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+        <button class="btn" id="demoBtn">Örnek Veri</button>
+        <button class="btn" id="clearBtn">Tümünü Temizle</button>
+        <button class="btn" id="themeBtn" title="Tema değiştir">Tema</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- 1) Veri Girişi -->
+    <section class="section">
+      <div class="card">
+        <div class="body">
+          <h2 style="margin:0 0 8px">Veri Giriş Alanı</h2>
+          <form id="appForm">
+            <input type="hidden" id="editId" />
+            <div class="row">
+              <div><label for="dateApplied">Başvuru Tarihi</label><input type="date" id="dateApplied"></div>
+              <div><label for="company">Şirket *</label><input id="company" placeholder="Örn: ACME" required></div>
+            </div>
+            <div class="row">
+              <div><label for="position">Pozisyon *</label><input id="position" placeholder="Örn: Embedded Engineer" required></div>
+              <div><label for="link">İlan / Form Linki</label><input id="link" placeholder="https://..."></div>
+            </div>
+            <div class="row">
+              <div><label for="city">Şehir</label><input id="city" placeholder="Örn: Ankara"></div>
+              <div>
+                <label for="countrySearch">Ülke *</label>
+                <div class="combo" id="countryCombo" role="combobox" aria-expanded="false" aria-owns="countryListBox" aria-haspopup="listbox">
+                  <input id="countrySearch" class="combo-input" placeholder="Ülke ara veya seç" autocomplete="off" />
+                  <div id="countryListBox" class="combo-list" role="listbox"></div>
+                </div>
+                <input id="country" type="hidden" required />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="mode">Çalışma Biçimi</label>
+                <select id="mode"><option value="Remote">Uzaktan</option><option value="Hibrit">Hibrit</option><option value="On-site">İşyerinde</option></select>
+              </div>
+              <div>
+                <label for="status">Durum</label>
+                <select id="status"><option>Gönderildi</option><option>Mülakat</option><option>Ret</option><option>Kabul</option></select>
+              </div>
+            </div>
+            <div><label for="notes">Notlar</label><textarea id="notes" placeholder="Ek notlar..."></textarea></div>
+            <div class="actions">
+              <button class="btn primary" type="submit" id="saveBtn">Ekle</button>
+              <button class="btn" type="button" id="cancelEditBtn" style="display:none;">Vazgeç</button>
+            </div>
+            <div class="muted" style="margin-top:8px">* Zorunlu alanlar. Veriler sadece tarayıcınızda saklanır.</div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4) Başvurular (Filtre + Tablo) -->
+    <section class="section">
+      <div class="card">
+        <div class="body">
+          <h2 style="margin:0 0 8px">Başvurular</h2>
+
+          <!-- Filtreler -->
+          <div class="filters" id="filters">
+            <div>
+              <label for="fText">Şirket / Pozisyon</label>
+              <input id="fText" placeholder="Ara..." />
+            </div>
+            <div>
+              <label for="fCountry">Ülke</label>
+              <select id="fCountry"></select>
+            </div>
+            <div>
+              <label for="fMode">Çalışma</label>
+              <select id="fMode">
+                <option value="">Hepsi</option>
+                <option value="Remote">Uzaktan</option>
+                <option value="Hibrit">Hibrit</option>
+                <option value="On-site">İşyerinde</option>
+              </select>
+            </div>
+            <div>
+              <label for="fStatus">Durum</label>
+              <select id="fStatus">
+                <option value="">Hepsi</option>
+                <option>Gönderildi</option>
+                <option>Mülakat</option>
+                <option>Ret</option>
+                <option>Kabul</option>
+              </select>
+            </div>
+            <div style="align-self:end">
+              <button class="btn" id="resetFiltersBtn">Filtreleri Sıfırla</button>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table id="appsTable">
+              <thead>
+                <tr>
+                  <th data-key="dateApplied">Tarih <span class="sort" id="sortIndicator-dateApplied"></span></th>
+                  <th data-key="company">Şirket <span class="sort" id="sortIndicator-company"></span></th>
+                  <th data-key="position">Pozisyon <span class="sort" id="sortIndicator-position"></span></th>
+                  <th data-key="country">Ülke <span class="sort" id="sortIndicator-country"></span></th>
+                  <th data-key="city">Şehir <span class="sort" id="sortIndicator-city"></span></th>
+                  <th data-key="mode">Çalışma <span class="sort" id="sortIndicator-mode"></span></th>
+                  <th data-key="status">Durum <span class="sort" id="sortIndicator-status"></span></th>
+                  <th data-key="notes">Notlar <span class="sort" id="sortIndicator-notes"></span></th>
+                  <th>Link</th>
+                  <th>İşlem</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="sub" style="margin-top:8px">Sütun başlıklarına tıklayarak sıralayabilirsiniz.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2) Harita -->
+    <section class="section">
+      <div class="card">
+        <div class="body">
+          <h2 style="margin:0 0 8px">Harita</h2>
+          <div id="map" role="img" aria-label="Avrupa başvuruları ısı haritası"><span id="mapMsg" style="color:#64748b">Harita yükleniyor…</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3) İstatistikler -->
+    <section class="section">
+      <div class="card">
+        <div class="body">
+          <h2 style="margin:0 0 8px">İstatistikler</h2>
+          <div class="stats">
+            <div class="pill"><div class="k">Toplam</div><div class="v" id="statTotal">0</div></div>
+            <div class="pill"><div class="k">Gönderildi</div><div class="v" id="statSent">0</div></div>
+            <div class="pill"><div class="k">Mülakat</div><div class="v" id="statInterview">0</div></div>
+            <div class="pill"><div class="k">Kabul</div><div class="v" id="statOffer">0</div></div>
+          </div>
+          <div style="margin-top:14px;">
+            <h3>En Çok Başvurulan 5 Ülke</h3>
+            <ol id="top5" style="padding-left:18px;margin:0;"></ol>
+          </div>
+          <div style="margin-top:12px">
+            <h3>Zaman Grafiği</h3>
+            <div id="trend" role="img" aria-label="Günlere göre başvuru grafiği"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5) Düşünülen Pozisyonlar (Wishlist) -->
+    <section class="section">
+      <div class="card">
+        <div class="body">
+          <h2 style="margin:0 0 8px">Düşünülen Pozisyonlar (Wishlist)</h2>
+
+          <form id="wishForm" style="margin-bottom:12px">
+            <input type="hidden" id="wEditId" />
+            <div class="row">
+              <div><label for="wCompany">Şirket *</label><input id="wCompany" placeholder="Örn: ACME" required></div>
+              <div><label for="wPosition">Pozisyon *</label><input id="wPosition" placeholder="Örn: Firmware Engineer" required></div>
+            </div>
+            <div class="row">
+              <div><label for="wCity">Şehir</label><input id="wCity" placeholder="Örn: Berlin"></div>
+              <div>
+                <label for="wCountrySearch">Ülke</label>
+                <div class="combo" id="wCountryCombo" role="combobox" aria-expanded="false" aria-owns="wCountryList" aria-haspopup="listbox">
+                  <input id="wCountrySearch" class="combo-input" placeholder="Ülke ara veya seç" autocomplete="off" />
+                  <div id="wCountryList" class="combo-list" role="listbox"></div>
+                </div>
+                <input id="wCountry" type="hidden" />
+              </div>
+            </div>
+            <div class="row">
+              <div>
+                <label for="wPriority">Öncelik *</label>
+                <select id="wPriority">
+                  <option value="Orta">Orta</option>
+                  <option value="Yüksek">Yüksek</option>
+                  <option value="Düşük">Düşük</option>
+                </select>
+              </div>
+                <div>
+				<label for="wMode">Çalışma Biçimi *</label>
+				<select id="wMode">
+				  <option value="Remote">Uzaktan</option>
+				  <option value="Hibrit">Hibrit</option>
+				  <option value="On-site">İşyerinde</option>
+				</select>
+			  </div>
+              <div><label for="wLink">İlan / Firma Linki</label><input id="wLink" placeholder="https://..."></div>
+            </div>
+            <div><label for="wNotes">Notlar</label><textarea id="wNotes" placeholder="Neden ilginç? Gereksinimler?"></textarea></div>
+            <div class="actions">
+              <button class="btn primary" type="submit" id="wSaveBtn">Ekle</button>
+              <button class="btn" type="button" id="wCancelBtn" style="display:none;">Vazgeç</button>
+            </div>
+            <div class="muted" style="margin-top:8px">* Zorunlu alanlar</div>
+          </form>
+
+          <div class="table-wrap">
+            <table id="wishTable">
+              <thead>
+                <tr>
+                  <th data-wkey="priority">Öncelik</th>
+                  <th data-wkey="company">Şirket</th>
+                  <th data-wkey="position">Pozisyon</th>
+                  <th data-wkey="country">Ülke</th>
+                  <th data-wkey="city">Şehir</th>
+                  <th data-wkey="notes">Notlar</th>
+                  <th data-wkey="mode">Çalışma</th>
+                  <th>Link</th>
+                  <th>İşlem</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <script>
+    // --- EN<->TR sözlüğü (düzeltilmiş) ---
+    const EN2TR={"Albania":"Arnavutluk","Andorra":"Andorra","Armenia":"Ermenistan","Austria":"Avusturya","Azerbaijan":"Azerbaycan","Belarus":"Belarus","Belgium":"Belçika","Bosnia and Herzegovina":"Bosna-Hersek","Bulgaria":"Bulgaristan","Croatia":"Hırvatistan","Cyprus":"Kıbrıs","Czech Republic":"Çekya","Czechia":"Çekya","Denmark":"Danimarka","Estonia":"Estonya","Finland":"Finlandiya","France":"Fransa","Georgia":"Gürcistan","Germany":"Almanya","Greece":"Yunanistan","Hungary":"Macaristan","Iceland":"İzlanda","Ireland":"İrlanda","Italy":"İtalya","Kosovo":"Kosova","Latvia":"Letonya","Liechtenstein":"Lihtenştayn","Lithuania":"Litvanya","Luxembourg":"Lüksemburg","Malta":"Malta","Moldova":"Moldova","Republic of Moldova":"Moldova","Moldova, Republic of":"Moldova","Monaco":"Monako","Montenegro":"Karadağ","Netherlands":"Hollanda","North Macedonia":"Kuzey Makedonya","Macedonia":"Kuzey Makedonya","The former Yugoslav Republic of Macedonia":"Kuzey Makedonya","Macedonia, The Former Yugoslav Republic of":"Kuzey Makedonya","Norway":"Norveç","Poland":"Polonya","Portugal":"Portekiz","Romania":"Romanya","Russia":"Rusya","Russian Federation":"Rusya","San Marino":"San Marino","Serbia":"Sırbistan","Slovakia":"Slovakya","Slovenia":"Slovenya","Spain":"İspanya","Sweden":"İsveç","Switzerland":"İsviçre","Turkey":"Türkiye","Ukraine":"Ukrayna","United Kingdom":"İngilitere","UK":"İngilitere","Great Britain":"İngilitere","Britain":"İngilitere","Vatican":"Vatikan","Vatican City":"Vatikan","Faroe Islands":"Faroe Adaları","Gibraltar":"Cebelitarık","Guernsey":"Guernsey","Jersey":"Jersey","Isle of Man":"Man Adası"};
+    const TR2EN=Object.fromEntries(Object.entries(EN2TR).map(([en,tr])=>[tr,en]));
+    const TR_TR_ALIASES={'Birleşik Krallık':'United Kingdom'};
+    const EUROPE_TR_LIST=Array.from(new Set(Object.values(EN2TR))).sort((a,b)=>a.localeCompare(b,'tr'));
+
+    // ---- Dayanıklı GeoJSON Yükleyici ----
+    let _europeGeoCache=null,_activeSource='';
+    async function fetchJSON(url){const res=await fetch(url,{cache:'no-store'});if(!res.ok)throw new Error('HTTP '+res.status);return res.json()}
+    function normalizeFeature(f){const p=f.properties||{};const baseName=p.name||p.NAME||p.ADMIN||p.admin||p.NAME_LONG||p.sovereignt||'Unknown';const name=baseName;const nameTR=EN2TR[name]||EN2TR[p.ADMIN]||EN2TR[p.NAME]||name;return{...f,properties:{...p,name,nameTR}}}
+    function stripExcluded(fc){const isExcluded=(p)=>{const iso=(p.ISO_A3||p.iso_a3||p.ADM0_A3||p.adm0_a3||'').toUpperCase();const name=(p.name||p.ADMIN||p.NAME||'').toLowerCase();return iso==='ISR'||name==='israel'};const features=(fc.features||[]).filter(f=>!isExcluded(f.properties||{}));return{type:'FeatureCollection',features}}
+    function filterEuropeFromWorld(world){const includeAlso=new Set(['TUR','CYP','XKX','XKS','ARM','AZE','GEO']);const feats=(world.features||[]).filter(f=>{const p=f.properties||{};const iso=(p.ISO_A3||p.iso_a3||p.ADM0_A3||p.adm0_a3||'').toUpperCase();const continent=(p.CONTINENT||p.continent||'').toString().toUpperCase();const regionUN=(p.REGION_UN||p.region_un||'').toString().toUpperCase();const sub=(p.SUBREGION||p.subregion||'').toString().toUpperCase();return continent==='EUROPE'||regionUN==='EUROPE'||sub.includes('EUROPE')||includeAlso.has(iso)}).map(normalizeFeature);return stripExcluded({type:'FeatureCollection',features:feats})}
+    async function getEuropeGeoJSON(){if(_europeGeoCache)return _europeGeoCache;const sources=[{name:'datasets/geo-countries',url:'https://cdn.jsdelivr.net/gh/datasets/geo-countries@master/data/countries.geojson',transform:filterEuropeFromWorld},{name:'map-of-europe (GeoJSON)',url:'https://raw.githubusercontent.com/leakyMirror/map-of-europe/master/GeoJSON/europe.geojson',transform:(d)=>stripExcluded({type:'FeatureCollection',features:(d.features||[]).map(normalizeFeature)})},{name:'echarts-countries-js (Europe)',url:'https://fastly.jsdelivr.net/npm/echarts-countries-js@1/dist/geojson/Europe.geo.json',transform:(d)=>stripExcluded({type:'FeatureCollection',features:(d.features||[]).map(normalizeFeature)})},{name:'unpkg echarts-countries-js',url:'https://unpkg.com/echarts-countries-js@1/dist/geojson/Europe.geo.json',transform:(d)=>stripExcluded({type:'FeatureCollection',features:(d.features||[]).map(normalizeFeature)})},];let lastErr=null;for(const s of sources){try{const json=await fetchJSON(s.url);const fc=s.transform(json);if(fc&&Array.isArray(fc.features)&&fc.features.length>10){_activeSource=s.name;_europeGeoCache=fc;return _europeGeoCache}}catch(e){lastErr=e;console.warn('Kaynak başarısız:',s.name,e)}}console.error('Avrupa haritası yüklenemedi.',lastErr);return{type:'FeatureCollection',features:[]}}
+
+    const NAME_ALIASES={'Czech Republic':'Czechia','Russia':'Russian Federation','Vatican':'Vatican City','Republic of Moldova':'Moldova','Moldova, Republic of':'Moldova','North Macedonia':'The former Yugoslav Republic of Macedonia','Macedonia':'The former Yugoslav Republic of Macedonia','UK':'United Kingdom','Great Britain':'United Kingdom','Britain':'United Kingdom'};const toMapName=n=>NAME_ALIASES[n]||n;const displayTR=n=>EN2TR[n]||n;
+
+    // --- Depolama ve yardımcılar ---
+    const LS_PRIMARY='jobs_europe_offline_v7';
+    const LS_FALLBACKS=['jobs_europe_offline_v6'];
+    const LS_WISHLIST='jobs_wishlist_v1';
+    const $=s=>document.querySelector(s);
+    const loadApps=()=>{for(const key of [LS_PRIMARY,...LS_FALLBACKS]){try{const v=JSON.parse(localStorage.getItem(key)||'[]');if(Array.isArray(v)) return v}catch{}}return[]};
+    const saveApps=arr=>localStorage.setItem(LS_PRIMARY,JSON.stringify(arr));
+    const loadWishlist=()=>{try{const v=JSON.parse(localStorage.getItem(LS_WISHLIST)||'[]');return Array.isArray(v)?v:[]}catch{return[]}};
+    const saveWishlist=arr=>localStorage.setItem(LS_WISHLIST,JSON.stringify(arr));
+    const todayStr=()=>new Date().toISOString().slice(0,10);
+
+    // Form elementleri
+    const formEl=$('#appForm');
+    const editId=$('#editId'),dateApplied=$('#dateApplied'),company=$('#company'),position=$('#position'),link=$('#link'),city=$('#city');
+    const mode=$('#mode'),statusSel=$('#status'),notes=$('#notes');
+    const countryHidden=$('#country');
+    const combo=$('#countryCombo');
+    const comboInput=$('#countrySearch');
+    const comboList=$('#countryListBox');
+
+    const cancelEditBtn=$('#cancelEditBtn'),saveBtn=$('#saveBtn');
+    const tableBody=$('#appsTable tbody');
+    const statTotal=$('#statTotal'),statSent=$('#statSent'),statInterview=$('#statInterview'),statOffer=$('#statOffer');
+    const top5El=$('#top5');
+    const exportBtn=$('#exportBtn'),exportCsvBtn=$('#exportCsvBtn'),importFile=$('#importFile'),demoBtn=$('#demoBtn'),clearBtn=$('#clearBtn');
+    const importBtn=$('#importBtn');
+    const themeBtn=$('#themeBtn');
+    const mapMsg=$('#mapMsg');
+    const trendEl=$('#trend');
+
+    // Wishlist elementleri
+    const wishForm=$('#wishForm');
+	const wEditId=$('#wEditId'), wCompany=$('#wCompany'), wPosition=$('#wPosition'), wCity=$('#wCity'), wLink=$('#wLink'), wNotes=$('#wNotes'), wPriority=$('#wPriority'), wMode=$('#wMode');
+    const wCountryHidden=$('#wCountry');
+    const wCombo=$('#wCountryCombo'), wComboInput=$('#wCountrySearch'), wComboList=$('#wCountryList');
+    const wSaveBtn=$('#wSaveBtn'), wCancelBtn=$('#wCancelBtn');
+    const wishTBody=$('#wishTable tbody');
+
+    // Filtre elemanları
+    const fText=$('#fText'),fCountry=$('#fCountry'),fMode=$('#fMode'),fStatus=$('#fStatus');
+    const resetFiltersBtn=$('#resetFiltersBtn');
+
+    // Tarihi bugüne ayarla
+    dateApplied.value=todayStr();
+
+    function normalizeCountry(inputTR){if(!inputTR)return'';const t=inputTR.trim();return TR2EN[t]||TR_TR_ALIASES[t]||''}
+
+    function appFromForm(){return{ id:editId.value||String(Date.now()), dateApplied:dateApplied.value||todayStr(), company:company.value.trim(), position:position.value.trim(), link:link.value.trim(), city:city.value.trim(), country:countryHidden.value.trim(), mode:mode.value, status:statusSel.value, notes:notes.value.trim() }}
+
+    function escapeHtml(str){
+      const map = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+      return String(str).replace(/[&<>"']+/g, s => map[s] || s);
+    }
+
+    // --- SIRALAMA DURUMU ---
+    const sortState={key:'dateApplied',dir:'desc'}; // varsayılan: tarih azalan
+    function compareBy(key,dir){return(a,b)=>{let va=a[key]??'', vb=b[key]??''; if(key==='dateApplied'){ /* ISO tarih */ } else { va=String(va).toLowerCase(); vb=String(vb).toLowerCase(); } if(va<vb) return dir==='asc'?-1:1; if(va>vb) return dir==='asc'?1:-1; return 0 }}
+    function formatDateTR(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); if(!y||!m||!d) return iso; return `${d}.${m}.${y}` }
+    function setSort(key){ if(sortState.key===key){sortState.dir=sortState.dir==='asc'?'desc':'asc'} else {sortState.key=key;sortState.dir='asc'} updateSortIndicators(); saveUIState(); renderAll() }
+    function updateSortIndicators(){ document.querySelectorAll('th .sort').forEach(el=>el.textContent=''); const el=document.querySelector('#sortIndicator-'+sortState.key); if(el){ el.textContent=sortState.dir==='asc'?'↑':'↓' } }
+
+    // --- FİLTRELER ---
+    function uniqueCountries(apps){return Array.from(new Set(apps.map(a=>a.country).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'tr'))}
+    function applyFilters(apps){ return apps.filter(a=>{ const q=fText.value.trim().toLowerCase(); const inText=!q||a.company.toLowerCase().includes(q)||a.position.toLowerCase().includes(q)|| (a.notes||'').toLowerCase().includes(q); const inCountry=!fCountry.value||a.country===fCountry.value; const inMode=!fMode.value||a.mode===fMode.value; const inStatus=!fStatus.value||a.status===fStatus.value; return inText&&inCountry&&inMode&&inStatus }) }
+    function initFilterOptions(allApps){ const prev=fCountry.value; const options=['<option value="">Hepsi</option>', ...uniqueCountries(allApps).map(c=>`<option>${c}</option>`)].join(''); fCountry.innerHTML=options; if(prev && [...fCountry.options].some(o=>o.value===prev)){ fCountry.value=prev } }
+
+    // --- TABLO RENDER ---
+    function renderTable(apps){ tableBody.innerHTML=''; const sorted=[...apps].sort(compareBy(sortState.key,sortState.dir)); if(sorted.length===0){ const tr=document.createElement('tr'); tr.innerHTML=`<td colspan="10" style="color:#64748b">Kayıt bulunamadı. Filtreleri kontrol edin.</td>`; tableBody.appendChild(tr); return } for(const a of sorted){ const tr=document.createElement('tr'); tr.innerHTML=`
+          <td>${formatDateTR(a.dateApplied)||''}</td>
+          <td>${escapeHtml(a.company)}</td>
+          <td>${escapeHtml(a.position)}</td>
+          <td>${escapeHtml(a.country||'')}</td>
+          <td>${escapeHtml(a.city||'')}</td>
+          <td><span class="tag ${a.mode}">${a.mode==='Remote'?'Uzaktan':(a.mode==='On-site'?'İşyerinde':a.mode)}</span></td>
+          <td class="status st-${a.status}">${a.status}</td>
+          <td>${escapeHtml(a.notes||'')}</td>
+          <td>${a.link?`<a href="${a.link}" target="_blank" rel="noopener">Aç</a>`:'<span style="color:#94a3b8">—</span>'}</td>
+          <td><button class="btn" data-edit="${a.id}">Düzenle</button> <button class="btn" data-dup="${a.id}">Kopyala</button> <button class="btn" data-del="${a.id}">Sil</button></td>`; tableBody.appendChild(tr) } }
+
+    function countryCounts(apps){const c={}; for(const a of apps){const en=normalizeCountry(a.country); if(!en) continue; c[en]=(c[en]||0)+1} return c}
+
+    function renderStats(apps){ statTotal.textContent=apps.length; statSent.textContent=apps.filter(a=>a.status==='Gönderildi').length; statInterview.textContent=apps.filter(a=>a.status==='Mülakat').length; statOffer.textContent=apps.filter(a=>a.status==='Kabul').length; const counts=countryCounts(apps); const items=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5); top5El.innerHTML=''; if(items.length===0) top5El.innerHTML='<li>Veri yok.</li>'; for(const [en,n] of items){ const li=document.createElement('li'); li.textContent=`${displayTR(en)}: ${n}`; top5El.appendChild(li) } }
+
+    let chart, mapReady=false, trendChart;
+    let mapFeatureNames=new Set();
+
+    // --- Basit Toast ---
+    const toastEl=document.getElementById('toast');
+    let toastTimer=null;
+    function showToast(msg, {html=false, timeout=1800, interactive=false}={}){ if(!toastEl) return; toastEl.classList.toggle('interactive', !!interactive); toastEl.innerHTML = html ? msg : ''; if(!html){ toastEl.textContent = msg } toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>{ toastEl.classList.remove('show'); toastEl.classList.remove('interactive'); }, timeout) }
+
+	// --- file:// altında üst banner uyarısı ---
+	const FILE_WARN_KEY = 'applytrack_suppress_file_warn_v1';
+	function showFileBanner(){
+	  if (location.protocol !== 'file:' || localStorage.getItem(FILE_WARN_KEY) === '1') return;
+
+	  const header = document.querySelector('header');
+	  if(!header) return;
+
+	  const bar = document.createElement('div');
+	  bar.id = 'fileBanner';
+	  bar.className = 'banner';
+	  bar.setAttribute('role','alert');
+	  bar.setAttribute('aria-live','polite');
+
+	  bar.innerHTML = `
+		<span aria-hidden="true">⚠️</span>
+		<div class="msg">
+		  Bu sayfayı <b>file://</b> ile açıyorsunuz. Dosya adı/klasör değişirse tarayıcı farklı bir
+		  depolama alanı kullanır ve veriler ayrı görünebilir. Kalıcı kullanım için
+		  <b>localhost</b> veya <b>GitHub Pages</b> önerilir.
+		</div>
+		<div class="actions" style="display:flex;gap:8px;flex-wrap:wrap">
+		  <button class="btn sm" id="bnExport">JSON yedekle</button>
+		  <button class="btn sm" id="bnDismiss">Kapat</button>
+		  <button class="btn sm" id="bnDontShow">Bir daha gösterme</button>
+		</div>
+	  `;
+
+	  // Header sticky olduğu için banner'ı header içine, ana wrap'in altına yerleştiriyoruz
+	  header.appendChild(bar);
+	  // Görünür yap
+	  requestAnimationFrame(()=> bar.classList.add('show'));
+
+	  // Butonlar
+	  const exp = () => {
+		const btn = document.getElementById('exportBtn');
+		if (btn && btn.click) btn.click();
+	  };
+	  const dismiss = (persist=false) => {
+		if (persist) localStorage.setItem(FILE_WARN_KEY, '1');
+		bar.classList.remove('show');
+		setTimeout(()=> bar.remove(), 200);
+	  };
+
+	  bar.querySelector('#bnExport')?.addEventListener('click', exp, {once:true});
+	  bar.querySelector('#bnDismiss')?.addEventListener('click', ()=>dismiss(false), {once:true});
+	  bar.querySelector('#bnDontShow')?.addEventListener('click', ()=>dismiss(true), {once:true});
+	}
+
+    // --- UI Durumu (filtreler + sıralama) ---
+    const LS_UI='jobs_europe_ui_v1';
+    function saveUIState(){ const state={ sort: {...sortState}, filters:{ fText:fText.value, fCountry:fCountry.value, fMode:fMode.value, fStatus:fStatus.value } }; try{ localStorage.setItem(LS_UI, JSON.stringify(state)) }catch{} }
+    function loadUIState(){ try{ const raw=localStorage.getItem(LS_UI); if(!raw) return; const s=JSON.parse(raw); if(s && s.sort){ sortState.key=s.sort.key||sortState.key; sortState.dir=s.sort.dir||sortState.dir } if(s && s.filters){ fText.value=s.filters.fText||''; fCountry.value=s.filters.fCountry||''; fMode.value=s.filters.fMode||''; fStatus.value=s.filters.fStatus||'' } updateSortIndicators() }catch{} }
+
+    // Tema durumu
+    const LS_THEME='jobs_europe_theme_v1';
+    function applyTheme(theme){ document.documentElement.setAttribute('data-theme', theme) }
+    function loadTheme(){ const saved=localStorage.getItem(LS_THEME) || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark':'light'); applyTheme(saved) }
+    function toggleTheme(){ const current=document.documentElement.getAttribute('data-theme')||'light'; const next=current==='dark'?'light':'dark'; applyTheme(next); try{ localStorage.setItem(LS_THEME,next) }catch{}; showToast(next==='dark'?'Koyu tema':'Açık tema') }
+
+    async function renderMap(apps){ if(!mapReady){ const geoJson=await getEuropeGeoJSON(); if(!geoJson.features||geoJson.features.length===0){ mapMsg&&(mapMsg.textContent='Harita verisi yüklenemedi. İnternet bağlantınızı veya ağ politikalarını kontrol edin.'); return } echarts.registerMap('Europe',geoJson); chart=echarts.init(document.getElementById('map')); mapFeatureNames=new Set((geoJson.features||[]).map(f=>String((f.properties&&f.properties.name)||''))); mapReady=true } const counts=countryCounts(apps); const data=Object.entries(counts).map(([name,value])=>{ const alias=toMapName(name); const target= mapFeatureNames.has(name) ? name : (mapFeatureNames.has(alias) ? alias : name); return {name:target,value} }); const maxV=Math.max(1,...Object.values(counts),1); chart.setOption({ backgroundColor:'transparent', tooltip:{trigger:'item',formatter:p=>`${displayTR(p.name)}: ${(p.data&&p.data.value)||0} başvuru`}, visualMap:{min:0,max:maxV,left:'left',top:'bottom',text:['Yüksek','Düşük'],calculable:true,inRange:{color:['#e0f2fe','#2563eb','#0369a1']}}, series:[{name:'Başvurular',type:'map',map:'Europe',roam:true,nameProperty:'name',data:data,label:{show:false,formatter:params=>displayTR(params.name)},emphasis:{label:{show:false},itemStyle:{areaColor:'#f59e0b'}}}] }); mapMsg&&(mapMsg.style.display='none'); chart.off('click'); chart.on('click', function(params){ const trName = displayTR(params.name); if(fCountry.value===trName){ fCountry.value=''; } else { fCountry.value=trName } saveUIState(); renderAll(); }); }
+
+    function groupByDate(apps){const m=new Map(); for(const a of apps){const d=a.dateApplied||todayStr(); m.set(d,(m.get(d)||0)+1)} return Array.from(m.entries()).sort((a,b)=>a[0].localeCompare(b[0])) }
+    function renderTrend(apps){ if(!trendChart){ trendChart=echarts.init(trendEl) } const pairs=groupByDate(apps); trendChart.setOption({ backgroundColor:'transparent', tooltip:{trigger:'axis'}, xAxis:{type:'category',data:pairs.map(p=>p[0])}, yAxis:{type:'value'}, series:[{type:'line',smooth:true,data:pairs.map(p=>p[1])}] }) }
+
+    // ---- Aramalı ülke dropdown mantığı (başvuru formu) ----
+    function normalizeSearchText(s){ return String(s).toLocaleLowerCase('tr').normalize('NFD').replace(/[\u0300-\u036f]/g,'') }
+    function renderCountryOptions(filter=''){ const q=normalizeSearchText(filter.trim()); const items=EUROPE_TR_LIST.filter(tr=>normalizeSearchText(tr).includes(q)); comboList.innerHTML=''; comboList.style.display='block'; combo.setAttribute('aria-expanded','true'); if(items.length===0){ const div=document.createElement('div'); div.className='combo-empty'; div.textContent='Sonuç bulunamadı'; comboList.appendChild(div); return } items.forEach((tr)=>{ const opt=document.createElement('div'); opt.className='combo-item'; opt.setAttribute('role','option'); opt.setAttribute('data-value',tr); opt.setAttribute('aria-selected','false'); opt.textContent=tr; opt.addEventListener('click',()=>selectCountry(tr)); comboList.appendChild(opt) }) }
+    function selectCountry(tr){ countryHidden.value=tr; comboInput.value=tr; comboList.style.display='none'; combo.setAttribute('aria-expanded','false'); comboInput.focus() }
+    comboInput.addEventListener('focus',()=>renderCountryOptions(comboInput.value));
+    comboInput.addEventListener('input',()=>renderCountryOptions(comboInput.value));
+    comboInput.addEventListener('keydown',(e)=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); const opts=[...comboList.querySelectorAll('.combo-item')]; if(opts.length===0) return; let idx=opts.findIndex(x=>x.getAttribute('aria-selected')==='true'); idx=idx<0?0:(e.key==='ArrowDown'?Math.min(idx+1,opts.length-1):Math.max(idx-1,0)); opts.forEach(x=>x.setAttribute('aria-selected','false')); opts[idx].setAttribute('aria-selected','true'); opts[idx].scrollIntoView({block:'nearest'}) } else if(e.key==='Enter'){ const sel=comboList.querySelector('.combo-item[aria-selected="true"]'); if(sel){ selectCountry(sel.getAttribute('data-value')) } else if(comboList.firstChild&&comboList.firstChild.classList.contains('combo-item')){ selectCountry(comboList.firstChild.getAttribute('data-value')) } } else if(e.key==='Escape'){ comboList.style.display='none'; combo.setAttribute('aria-expanded','false') } });
+    document.addEventListener('click',(e)=>{ if(!combo.contains(e.target)){ comboList.style.display='none'; combo.setAttribute('aria-expanded','false') }});
+
+    // ---- Aramalı ülke dropdown mantığı (wishlist formu) ----
+    function renderWCountryOptions(filter=''){ const q=normalizeSearchText(filter.trim()); const items=EUROPE_TR_LIST.filter(tr=>normalizeSearchText(tr).includes(q)); wComboList.innerHTML=''; wComboList.style.display='block'; wCombo.setAttribute('aria-expanded','true'); if(items.length===0){ const div=document.createElement('div'); div.className='combo-empty'; div.textContent='Sonuç bulunamadı'; wComboList.appendChild(div); return } items.forEach((tr)=>{ const opt=document.createElement('div'); opt.className='combo-item'; opt.setAttribute('role','option'); opt.setAttribute('data-value',tr); opt.setAttribute('aria-selected','false'); opt.textContent=tr; opt.addEventListener('click',()=>selectWCountry(tr)); wComboList.appendChild(opt) }) }
+    function selectWCountry(tr){ wCountryHidden.value=tr; wComboInput.value=tr; wComboList.style.display='none'; wCombo.setAttribute('aria-expanded','false'); wComboInput.focus() }
+    wComboInput.addEventListener('focus',()=>renderWCountryOptions(wComboInput.value));
+    wComboInput.addEventListener('input',()=>renderWCountryOptions(wComboInput.value));
+    wComboInput.addEventListener('keydown',(e)=>{ if(e.key==='ArrowDown'||e.key==='ArrowUp'){ e.preventDefault(); const opts=[...wComboList.querySelectorAll('.combo-item')]; if(opts.length===0) return; let idx=opts.findIndex(x=>x.getAttribute('aria-selected')==='true'); idx=idx<0?0:(e.key==='ArrowDown'?Math.min(idx+1,opts.length-1):Math.max(idx-1,0)); opts.forEach(x=>x.setAttribute('aria-selected','false')); opts[idx].setAttribute('aria-selected','true'); opts[idx].scrollIntoView({block:'nearest'}) } else if(e.key==='Enter'){ const sel=wComboList.querySelector('.combo-item[aria-selected="true"]'); if(sel){ selectWCountry(sel.getAttribute('data-value')) } else if(wComboList.firstChild&&wComboList.firstChild.classList.contains('combo-item')){ selectWCountry(wComboList.firstChild.getAttribute('data-value')) } } else if(e.key==='Escape'){ wComboList.style.display='none'; wCombo.setAttribute('aria-expanded','false') } });
+    document.addEventListener('click',(e)=>{ if(!wCombo.contains(e.target)){ wComboList.style.display='none'; wCombo.setAttribute('aria-expanded','false') }});
+
+    // ---- Self-testler ----
+    function runSelfTests(geojson){
+      const namesTR=new Set((geojson.features||[]).map(f=>String(((f.properties&&f.properties.nameTR)||'' )).toLowerCase()));
+      const tests=[
+        {name:'TR çeviriler mevcut',ok:namesTR.size>0},
+        {name:'Ermenistan listede',ok:EUROPE_TR_LIST.includes('Ermenistan')},
+        {name:'Azerbaycan listede',ok:EUROPE_TR_LIST.includes('Azerbaycan')},
+        {name:'Gürcistan listede',ok:EUROPE_TR_LIST.includes('Gürcistan')},
+      ];
+      const summary=
+        `Aktif kaynak: ${_activeSource||'-'}\n`+
+        `Toplam feature: ${(geojson.features||[]).length}\n`+
+        tests.map(t=>`[${t.ok?'OK':'HATA'}] ${t.name}`).join('\n');
+      console.log('[SELF-TEST]\n'+summary);
+    }
+
+    // --- Başvuru formu doğrulama (görsel vurgulu) ---
+    function clearValidation(){ [company,position,comboInput].forEach(el=>el.classList.remove('invalid')) }
+    ;[company,position,comboInput].forEach(el=>el.addEventListener('input',()=>el.classList.remove('invalid')))
+    function validateApp(app){ let ok=true; clearValidation(); if(!app.company){ company.classList.add('invalid'); ok=false } if(!app.position){ position.classList.add('invalid'); ok=false } if(!app.country){ comboInput.classList.add('invalid'); ok=false } if(!ok){ const first=[company,position,comboInput].find(el=>el.classList.contains('invalid')); first&&first.focus(); showToast('Lütfen zorunlu alanları doldurun.'); return false } return true }
+
+    formEl.addEventListener('submit',async(e)=>{ e.preventDefault(); const app=appFromForm(); const isUpdate=!!editId.value; if(!validateApp(app)) return; const apps=loadApps(); const idx=apps.findIndex(x=>x.id===app.id); if(idx>=0) apps[idx]=app; else apps.push(app); saveApps(apps); await renderAll(); formEl.reset(); dateApplied.value=todayStr(); editId.value=''; countryHidden.value=''; comboInput.value=''; saveBtn.textContent='Ekle'; cancelEditBtn.style.display='none'; (company&&company.focus&&company.focus()); showToast(isUpdate?'Güncellendi':'Kaydedildi'); saveUIState() });
+
+    const appsTable=document.getElementById('appsTable');
+    appsTable.addEventListener('click',async(e)=>{ const btn=e.target.closest('button'); if(!btn) return; const id=btn.getAttribute('data-edit')||btn.getAttribute('data-del')||btn.getAttribute('data-dup'); const apps=loadApps(); const a=apps.find(x=>x.id===id); if(!a) return; if(btn.hasAttribute('data-edit')){ editId.value=a.id; dateApplied.value=a.dateApplied||todayStr(); company.value=a.company||''; position.value=a.position||''; link.value=a.link||''; city.value=a.city||''; countryHidden.value=a.country||''; comboInput.value=a.country||''; mode.value=a.mode||'Remote'; statusSel.value=a.status||'Gönderildi'; notes.value=a.notes||''; saveBtn.textContent='Güncelle'; cancelEditBtn.style.display='inline-flex'; window.scrollTo({top:0,behavior:'smooth'}) } else if(btn.hasAttribute('data-dup')){ editId.value=''; dateApplied.value=a.dateApplied||todayStr(); company.value=a.company||''; position.value=a.position||''; link.value=a.link||''; city.value=a.city||''; countryHidden.value=a.country||''; comboInput.value=a.country||''; mode.value=a.mode||'Remote'; statusSel.value=a.status||'Gönderildi'; notes.value=a.notes||''; saveBtn.textContent='Ekle'; cancelEditBtn.style.display='inline-flex'; window.scrollTo({top:0,behavior:'smooth'}); showToast('Form kopyalandı') } else if(btn.hasAttribute('data-del')){ const rest=apps.filter(x=>x.id!==id); saveApps(rest); await renderAll(); const undoId=id; const msg=`Silindi <button class="btn" id="undoBtn">Geri Al</button>`; showToast(msg,{html:true,timeout:2000,interactive:true}); const once=()=>{ const undo=document.getElementById('undoBtn'); if(!undo) return; undo.addEventListener('click',()=>{ const current=loadApps(); const already=current.find(x=>x.id===undoId); if(already) return; current.push(a); saveApps(current); renderAll(); showToast('Geri alındı'); },{once:true}); }; setTimeout(once,0); saveUIState() } });
+
+    // Dışa/İçe aktarma ve demo/temizleme
+    exportBtn.addEventListener('click',()=>{ const data=JSON.stringify(loadApps(),null,2); const blob=new Blob([data],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='is-basvurularim.json'; a.click(); URL.revokeObjectURL(a.href) });
+
+    exportCsvBtn.addEventListener('click',()=>{
+      const apps=loadApps();
+      const headers=['Tarih','Şirket','Pozisyon','Şehir','Ülke','Çalışma','Durum','Notlar','Link'];
+      const rows=apps.map(a=>[
+        a.dateApplied,a.company,a.position,a.city,a.country,a.mode,a.status,
+        (a.notes||'').replace(/\n/g,' '),
+        a.link
+      ]);
+      const csv=[headers,...rows]
+        .map(r=>r.map(x=>`"${String(x??'').replace(/"/g,'""')}"`).join(','))
+        .join('\n');
+      const blob=new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8;'}); // UTF-8 BOM
+      const a=document.createElement('a');
+      a.href=URL.createObjectURL(blob);
+      a.download='is-basvurularim.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    if(importBtn){ importBtn.addEventListener('click',()=>importFile && importFile.click()) }
+    importFile.addEventListener('change',async e=>{ const file=e.target.files[0]; if(!file) return; try{ const text=await file.text(); const arr=JSON.parse(text); if(!Array.isArray(arr)) throw new Error('Beklenmeyen veri formatı'); saveApps(arr); await renderAll(); showToast('İçe aktarıldı'); saveUIState() } catch(err){ alert('İçe aktarma başarısız: '+err.message) } finally{ e.target.value='' } });
+
+    demoBtn.addEventListener('click',async()=>{ const demo=[ {id:'d1',dateApplied:todayStr(),company:'Tech Solutions GmbH',position:'Frontend Developer',link:'',city:'Berlin',country:'Almanya',mode:'Hibrit',status:'Mülakat',notes:'Teknik mülakat başarılı.'}, {id:'d2',dateApplied:todayStr(),company:'Innovate Labs',position:'Product Manager',link:'',city:'Amsterdam',country:'Hollanda',mode:'On-site',status:'Gönderildi',notes:''}, {id:'d3',dateApplied:todayStr(),company:'DevCo',position:'Backend Engineer',link:'',city:'Dublin',country:'İrlanda',mode:'Remote',status:'Ret',notes:'Pozisyon kapandı.'}, {id:'d4',dateApplied:todayStr(),company:'Data Analytics AŞ',position:'Data Scientist',link:'',city:'İstanbul',country:'Türkiye',mode:'Hibrit',status:'Kabul',notes:'Teklif kabul edildi!'}, {id:'d5',dateApplied:todayStr(),company:'EuroTech',position:'DevOps Engineer',link:'',city:'Berlin',country:'Almanya',mode:'On-site',status:'Gönderildi',notes:''}, {id:'d6',dateApplied:todayStr(),company:'Caucasus Labs',position:'QA Engineer',link:'',city:'Bakü',country:'Azerbaycan',mode:'On-site',status:'Gönderildi',notes:''} ]; saveApps(demo); await renderAll() });
+
+    clearBtn.addEventListener('click',async()=>{ if(confirm('Tüm başvurular kalıcı olarak silinecek. Emin misiniz?')){ localStorage.removeItem(LS_PRIMARY); localStorage.removeItem('jobs_europe_offline_v6'); await renderAll(); showToast('Temizlendi'); saveUIState() } });
+
+    // --- FİLTRE EVENTLERİ ---
+    [fText,fCountry,fMode,fStatus].forEach(el=>el.addEventListener('input',()=>{ saveUIState(); renderAll() }));
+    resetFiltersBtn.addEventListener('click',()=>{ fText.value=''; fCountry.value=''; fMode.value=''; fStatus.value=''; renderAll() });
+
+    // --- SÜTUN BAŞLIKLARI SIRALAMA ---
+    (function(){
+      var ths = document.querySelectorAll('#appsTable thead th[data-key]');
+      ths.forEach(function(th){ th.addEventListener('click', function(){ setSort(th.getAttribute('data-key')); }); });
+    })();
+
+    // --- TREND & MAP BOYUTLANDIRMA ---
+    window.addEventListener('resize',()=>{ if(trendChart) trendChart.resize(); if(chart) chart.resize() });
+
+    // =======================
+    // WISHLIST İŞLEVLERİ
+    // =======================
+	function wishFromForm(){return{
+	  id: wEditId.value||('w'+Date.now()),
+	  company: wCompany.value.trim(),
+	  position: wPosition.value.trim(),
+	  city: wCity.value.trim(),
+	  country: wCountryHidden.value.trim(),
+	  link: wLink.value.trim(),
+	  notes: wNotes.value.trim(),
+	  priority: wPriority.value || 'Orta',
+	  mode: (wMode.value || 'Remote'),
+	  created: new Date().toISOString()
+	}}
+
+    function validateWish(w){
+      let ok=true;
+      [wCompany,wPosition].forEach(el=>el.classList.remove('invalid'));
+      if(!w.company){ wCompany.classList.add('invalid'); ok=false }
+      if(!w.position){ wPosition.classList.add('invalid'); ok=false }
+      if(!ok){ (wCompany.classList.contains('invalid')?wCompany:wPosition).focus(); showToast('Wishlist: Şirket ve Pozisyon zorunlu.'); }
+      return ok;
+    }
+
+    function priorityRank(p){ return p==='Yüksek'?0:(p==='Orta'?1:2) }
+
+    function renderWishlist(){
+      const list=loadWishlist();
+      wishTBody.innerHTML='';
+      if(list.length===0){
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td colspan="8" style="color:#64748b">Henüz düşünülmüş pozisyon yok.</td>`;
+        wishTBody.appendChild(tr); return;
+      }
+      const sorted=[...list].sort((a,b)=>{
+        const pr=priorityRank(a.priority)-priorityRank(b.priority);
+        if(pr!==0) return pr;
+        return (a.created||'').localeCompare(b.created||''); // eskiden yeniye
+      });
+      for(const w of sorted){
+        const priClass = w.priority==='Yüksek'?'priority-high':(w.priority==='Düşük'?'priority-low':'priority-med');
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td><span class="priority-badge ${priClass}">${w.priority}</span></td>
+          <td>${escapeHtml(w.company)}</td>
+          <td>${escapeHtml(w.position)}</td>
+          <td>${escapeHtml(w.country||'')}</td>
+          <td>${escapeHtml(w.city||'')}</td>
+          <td><span class="tag ${w.mode||'Remote'}">${w.mode==='Remote'?'Uzaktan':(w.mode==='On-site'?'İşyerinde':(w.mode||'Remote'))}</span></td>
+          <td>${escapeHtml(w.notes||'')}</td>
+          <td>${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Aç</a>`:'<span style="color:#94a3b8">—</span>'}</td>
+          <td>
+            <button class="btn" data-wedit="${w.id}">Düzenle</button>
+            <button class="btn" data-wmove="${w.id}">Başvuruya Taşı</button>
+            <button class="btn" data-wdel="${w.id}">Sil</button>
+          </td>`;
+        wishTBody.appendChild(tr);
+      }
+    }
+
+    wishForm.addEventListener('submit',(e)=>{
+      e.preventDefault();
+      const w=wishFromForm();
+      if(!validateWish(w)) return;
+      const list=loadWishlist();
+      const idx=list.findIndex(x=>x.id===w.id);
+      if(idx>=0) list[idx]=w; else list.push(w);
+      saveWishlist(list);
+      renderWishlist();
+      wishForm.reset();
+      wEditId.value='';
+      wCountryHidden.value=''; wComboInput.value='';
+      wSaveBtn.textContent='Ekle'; wCancelBtn.style.display='none';
+      wCompany.focus();
+      showToast(idx>=0?'Wishlist güncellendi':'Wishlist eklendi');
+    });
+
+    wCancelBtn.addEventListener('click',()=>{
+      wishForm.reset(); wEditId.value='';
+      wCountryHidden.value=''; wComboInput.value='';
+      wSaveBtn.textContent='Ekle'; wCancelBtn.style.display='none';
+      [wCompany,wPosition].forEach(el=>el.classList.remove('invalid'));
+      wCompany.focus();
+    });
+
+    document.getElementById('wishTable').addEventListener('click',(e)=>{
+      const btn=e.target.closest('button'); if(!btn) return;
+      const id=btn.getAttribute('data-wedit')||btn.getAttribute('data-wmove')||btn.getAttribute('data-wdel');
+      const list=loadWishlist();
+      const w=list.find(x=>x.id===id);
+      if(!w) return;
+
+      if(btn.hasAttribute('data-wedit')){
+        wEditId.value=w.id; wCompany.value=w.company||''; wPosition.value=w.position||'';
+        wCity.value=w.city||''; wCountryHidden.value=w.country||''; wComboInput.value=w.country||'';
+        wLink.value=w.link||''; wNotes.value=w.notes||''; wPriority.value=w.priority||'Orta'; wMode.value = w.mode || 'Remote';
+        wSaveBtn.textContent='Güncelle'; wMode.value='Remote'; wCancelBtn.style.display='inline-flex';
+        window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'});
+      } else if(btn.hasAttribute('data-wdel')){
+        const rest=list.filter(x=>x.id!==id);
+        saveWishlist(rest); renderWishlist();
+        const snapshot={...w};
+        showToast(`Wishlist öğesi silindi <button class="btn" id="wUndoDel">Geri Al</button>`,{html:true,interactive:true,timeout:2500});
+        setTimeout(()=>{
+          const undo=document.getElementById('wUndoDel');
+          if(undo) undo.addEventListener('click',()=>{
+            const cur=loadWishlist();
+            if(!cur.find(x=>x.id===snapshot.id)){ cur.push(snapshot); saveWishlist(cur); renderWishlist(); showToast('Geri alındı') }
+          },{once:true});
+        },0);
+		} else if(btn.hasAttribute('data-wmove')){
+		const newApp={
+		  id:String(Date.now()),
+		  dateApplied: todayStr(),
+		  company: w.company,
+		  position: w.position,
+		  link: w.link||'',
+		  city: w.city||'',
+		  country: w.country||'',
+		  mode: w.mode || 'Remote',   // wishlist seçimi
+		  status: 'Gönderildi',       // her zaman Gönderildi
+		  notes: w.notes||''
+		};
+		
+		  const apps=loadApps(); apps.push(newApp); saveApps(apps);
+		  // wishlist'ten çıkar
+		  const rest=list.filter(x=>x.id!==id); saveWishlist(rest); renderWishlist(); renderAll();
+		  const snapshotW={...w}; // Geri al için
+		  showToast(`Başvurulara taşındı <button class="btn" id="wUndoMove">Geri Al</button>`,{html:true,interactive:true,timeout:3000});
+		  setTimeout(()=>{
+			const undo=document.getElementById('wUndoMove');
+			if(undo) undo.addEventListener('click',()=>{
+			  const curApps=loadApps();
+			  const removedApps=curApps.filter(a=>!(a.company===newApp.company && a.position===newApp.position && a.dateApplied===newApp.dateApplied));
+			  saveApps(removedApps);
+			  const curW=loadWishlist(); if(!curW.find(x=>x.id===snapshotW.id)){ curW.push(snapshotW); saveWishlist(curW) }
+			  renderAll(); renderWishlist(); showToast('Geri alındı');
+			},{once:true});
+		  },0);
+		}
+    });
+
+    // --- RENDER PIPELINE ---
+    async function renderAll(){
+      const all=loadApps();
+      initFilterOptions(all);
+      const filtered=applyFilters(all);
+      renderTable(filtered);
+      renderStats(filtered);
+      const geo=await getEuropeGeoJSON();
+      runSelfTests(geo);
+      await renderMap(filtered);
+      renderTrend(filtered);
+      updateSortIndicators();
+    }
+
+    // İlk yükleme
+    (function initCountryCombo(){ comboInput.value=''; countryHidden.value='' })();
+    (function initWCountryCombo(){ wComboInput.value=''; wCountryHidden.value='' })();
+    renderWishlist();
+    loadUIState();
+    loadTheme();
+    renderAll();
+	showFileBanner();
+
+    // Cancel edit -> form sıfırla ve odak
+    cancelEditBtn.addEventListener('click',()=>{ formEl.reset(); dateApplied.value=todayStr(); editId.value=''; countryHidden.value=''; comboInput.value=''; saveBtn.textContent='Ekle'; cancelEditBtn.style.display='none'; clearValidation(); (company&&company.focus&&company.focus()) });
+
+    // Klavye kısayolları
+    document.addEventListener('keydown', (e)=>{
+      const tag=(e.target&&e.target.tagName||'').toLowerCase();
+      const inTyping=['input','textarea','select'].includes(tag) || (e.target&&e.target.isContentEditable);
+      if(e.key==='/' && !inTyping){ e.preventDefault(); fText.focus() }
+      if(e.ctrlKey && e.key==='Enter'){ e.preventDefault(); if(formEl) formEl.requestSubmit() }
+      if(e.key==='Escape' && document.activeElement===fText){ fText.value=''; saveUIState(); renderAll() }
+    });
+
+    // Tema butonu
+    if(themeBtn){ themeBtn.addEventListener('click', toggleTheme) }
+
+    // Otomatik odak: şirket alanı
+    if(company && company.focus) company.focus();
+  </script>
+</body>
+</html>
