@@ -17,7 +17,7 @@
     /* Üst başlık */
     header{padding:18px 22px;border-bottom:1px solid var(--border);background:#ffffffcc;backdrop-filter:blur(8px);position:sticky;top:0;z-index:9}
     :root[data-theme="dark"] header{background:#0f172acc}
-    .wrap{max-width:1200px;margin:0 auto;padding:18px 22px}
+    .wrap{max-width:clamp(1024px, 92vw, 1440px);margin:0 auto;padding:18px 22px}
     h1{font-size:28px;margin:0 0 6px;letter-spacing:.2px}
     .sub{color:var(--muted);font-size:14px}
 
@@ -56,7 +56,7 @@
     #trend{width:100%;height:320px;border-radius:14px;overflow:hidden;background-color:color-mix(in srgb, var(--bg) 96%, #0000);margin-top:14px;transition:background .25s}
 
     /* Özet kutuları */
-    .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
     @media (max-width:820px){.stats{grid-template-columns:repeat(2,1fr)}}
     .pill{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:#fff}
     :root[data-theme="dark"] .pill{background:#0b1324}
@@ -108,6 +108,47 @@
     .priority-low{background:#ecfeff}
     .priority-med{background:#f1f5f9}
     .priority-high{background:#fee2e2}
+    
+    /* Tablo: İşlem sütunu tek satır kalsın */
+	td.actions-cell { white-space: nowrap; }
+
+	/* Küçük buton */
+	.btn.sm { padding: 6px 8px; font-size: 12px; border-radius: 10px; }
+
+	/* İkonlu buton */
+	.btn.icon { display: inline-flex; align-items: center; gap: 6px; }
+	.btn.icon svg { width: 14px; height: 14px; }
+
+	/* Sil (danger) tonu hafifçe belirgin */
+	.btn.danger { border-color: #fecaca; }
+
+	/* Dar ekranda metinleri gizle, sadece ikon kalsın */
+	@media (max-width: 780px) {
+	  .btn.icon .label { display: none; }
+	}
+
+	/* Başvurular tablosu: dar ekranlarda daha kompakt */
+	@media (max-width: 1100px){
+	  /* Notlar sütununu gizle (8. sütun) */
+	  #appsTable th:nth-child(8),
+	  #appsTable td:nth-child(8){ display:none; }
+	}
+	@media (max-width: 900px){
+	  /* Link sütununu gizle (9. sütun) */
+	  #appsTable th:nth-child(9),
+	  #appsTable td:nth-child(9){ display:none; }
+	}
+	@media (max-width: 760px){
+	  /* Şehir sütununu gizle (5. sütun) */
+	  #appsTable th:nth-child(5),
+	  #appsTable td:nth-child(5){ display:none; }
+	}
+
+	/* Dar alanda satır yüksekliğini şişirmesin diye hücreleri kompakt yapalım */
+	@media (max-width: 900px){
+	  #appsTable th, #appsTable td{ padding:10px 8px; font-size:14px; }
+	}
+	
   </style>
 </head>
 <body>
@@ -261,6 +302,7 @@
             <div class="pill"><div class="k">Gönderildi</div><div class="v" id="statSent">0</div></div>
             <div class="pill"><div class="k">Mülakat</div><div class="v" id="statInterview">0</div></div>
             <div class="pill"><div class="k">Kabul</div><div class="v" id="statOffer">0</div></div>
+            <div class="pill"><div class="k">Ret</div><div class="v" id="statReject">0</div></div>
           </div>
           <div style="margin-top:14px;">
             <h3>En Çok Başvurulan 5 Ülke</h3>
@@ -388,7 +430,7 @@
 
     const cancelEditBtn=$('#cancelEditBtn'),saveBtn=$('#saveBtn');
     const tableBody=$('#appsTable tbody');
-    const statTotal=$('#statTotal'),statSent=$('#statSent'),statInterview=$('#statInterview'),statOffer=$('#statOffer');
+    const statTotal=$('#statTotal'),statSent=$('#statSent'),statInterview=$('#statInterview'),statOffer=$('#statOffer'), statReject=$('#statReject');
     const top5El=$('#top5');
     const exportBtn=$('#exportBtn'),exportCsvBtn=$('#exportCsvBtn'),importFile=$('#importFile'),demoBtn=$('#demoBtn'),clearBtn=$('#clearBtn');
     const importBtn=$('#importBtn');
@@ -443,11 +485,31 @@
           <td class="status st-${a.status}">${a.status}</td>
           <td>${escapeHtml(a.notes||'')}</td>
           <td>${a.link?`<a href="${a.link}" target="_blank" rel="noopener">Aç</a>`:'<span style="color:#94a3b8">—</span>'}</td>
-          <td><button class="btn" data-edit="${a.id}">Düzenle</button> <button class="btn" data-dup="${a.id}">Kopyala</button> <button class="btn" data-del="${a.id}">Sil</button></td>`; tableBody.appendChild(tr) } }
+          <td class="actions-cell">
+			  <button class="btn sm icon" data-edit="${a.id}" title="Düzenle" aria-label="Düzenle">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+				  <path d="M12 20h9"/><path d="M16.5 3.5l4 4-11 11H5.5v-4z"/>
+				</svg>
+				<span class="label">Düzenle</span>
+			  </button>
+			  <button class="btn sm icon" data-dup="${a.id}" title="Kopyala" aria-label="Kopyala">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+				  <rect x="9" y="9" width="13" height="13" rx="2"/><rect x="2" y="2" width="13" height="13" rx="2"/>
+				</svg>
+				<span class="label">Kopyala</span>
+			  </button>
+			  <button class="btn sm icon danger" data-del="${a.id}" title="Sil" aria-label="Sil">
+				<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+				  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+				  <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>
+				</svg>
+				<span class="label">Sil</span>
+			  </button>
+		  </td> `; tableBody.appendChild(tr) } }
 
     function countryCounts(apps){const c={}; for(const a of apps){const en=normalizeCountry(a.country); if(!en) continue; c[en]=(c[en]||0)+1} return c}
 
-    function renderStats(apps){ statTotal.textContent=apps.length; statSent.textContent=apps.filter(a=>a.status==='Gönderildi').length; statInterview.textContent=apps.filter(a=>a.status==='Mülakat').length; statOffer.textContent=apps.filter(a=>a.status==='Kabul').length; const counts=countryCounts(apps); const items=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5); top5El.innerHTML=''; if(items.length===0) top5El.innerHTML='<li>Veri yok.</li>'; for(const [en,n] of items){ const li=document.createElement('li'); li.textContent=`${displayTR(en)}: ${n}`; top5El.appendChild(li) } }
+    function renderStats(apps){ statTotal.textContent=apps.length; statSent.textContent=apps.filter(a=>a.status==='Gönderildi').length; statInterview.textContent=apps.filter(a=>a.status==='Mülakat').length; statOffer.textContent=apps.filter(a=>a.status==='Kabul').length; statReject.textContent = apps.filter(a=>a.status==='Ret').length; const counts=countryCounts(apps); const items=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5); top5El.innerHTML=''; if(items.length===0) top5El.innerHTML='<li>Veri yok.</li>'; for(const [en,n] of items){ const li=document.createElement('li'); li.textContent=`${displayTR(en)}: ${n}`; top5El.appendChild(li) } }
 
     let chart, mapReady=false, trendChart;
     let mapFeatureNames=new Set();
@@ -704,7 +766,7 @@
         wEditId.value=w.id; wCompany.value=w.company||''; wPosition.value=w.position||'';
         wCity.value=w.city||''; wCountryHidden.value=w.country||''; wComboInput.value=w.country||'';
         wLink.value=w.link||''; wNotes.value=w.notes||''; wPriority.value=w.priority||'Orta'; wMode.value = w.mode || 'Remote';
-        wSaveBtn.textContent='Güncelle'; wMode.value='Remote'; wCancelBtn.style.display='inline-flex';
+        wSaveBtn.textContent='Güncelle'; wCancelBtn.style.display='inline-flex';
         window.scrollTo({top:document.body.scrollHeight, behavior:'smooth'});
       } else if(btn.hasAttribute('data-wdel')){
         const rest=list.filter(x=>x.id!==id);
