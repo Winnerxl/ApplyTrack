@@ -15,11 +15,14 @@
     :root[data-theme="dark"]{ --bg:#0b1220; --card:#0f172a; --text:#e5e7eb; --muted:#94a3b8; --accent:#60a5fa; --border:#1f2937 }
 
     /* Üst başlık */
-    header{padding:18px 22px;border-bottom:1px solid var(--border);background:#ffffffcc;backdrop-filter:blur(8px);position:sticky;top:0;z-index:9}
+    header{padding:calc(18px + env(safe-area-inset-top, 0px)) 22px;border-bottom:1px solid var(--border);background:#ffffffcc;backdrop-filter:blur(8px);position:static;top:auto;z-index:9}
     :root[data-theme="dark"] header{background:#0f172acc}
-    .wrap{max-width:clamp(1024px, 92vw, 1440px);margin:0 auto;padding:18px 22px}
-    h1{font-size:28px;margin:0 0 6px;letter-spacing:.2px}
-    .sub{color:var(--muted);font-size:14px}
+    header.hide{transform: translateY(-100%)}
+    @media (prefers-reduced-motion: reduce){ header{transition:none} }
+    header.scrolled{box-shadow:0 6px 20px rgba(2,6,23,.08)}
+    .wrap{max-width:clamp(320px, 92vw, 1440px);margin:0 auto;padding:18px 22px}
+    h1{font-size:clamp(20px, 4.5vw, 28px);margin:0 0 6px;letter-spacing:.2px}
+    .sub{color:var(--muted);font-size:clamp(12px, 3.4vw, 14px)}
 
     /* Kart ve bölüm düzeni */
     .section{margin-top:22px}
@@ -64,7 +67,7 @@
     .v{font-size:24px;font-weight:800}
 
     /* Tablo */
-    .table-wrap{overflow:auto;max-height:600px;border:1px solid var(--border);border-radius:14px;background:#fff;transition:background .25s}
+    .table-wrap{overflow:auto;max-height:600px;border:1px solid var(--border);border-radius:14px;background:#fff;transition:background .25s; -webkit-overflow-scrolling:touch}
     :root[data-theme="dark"] .table-wrap{background:#0b1324}
     table{width:100%;border-collapse:collapse}
     th,td{border-bottom:1px solid var(--border);padding:12px 10px;text-align:left;font-size:15px;vertical-align:top}
@@ -77,6 +80,10 @@
     /* Etiketler */
     .tag{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-size:12px;border:1px solid var(--border);transition:background .2s,color .2s,border-color .2s}
     .tag.Remote{background:#eff6ff;color:#1d4ed8}.tag.Hibrit{background:#ecfeff;color:#0891b2}.tag.On-site{background:#fefce8;color:#b45309}
+    /* Koyu tema için çalışma durumu renkleri */
+    :root[data-theme="dark"] .tag.Remote{background:#1e3a8a;color:#93c5fd;border-color:#3b82f6}
+    :root[data-theme="dark"] .tag.Hibrit{background:#164e63;color:#67e8f9;border-color:#06b6d4}
+    :root[data-theme="dark"] .tag.On-site{background:#92400e;color:#fbbf24;border-color:#f59e0b}
     .status{font-weight:700}
     .st-Gönderildi{color:#475569}.st-Ret{color:#ef4444}.st-Mülakat{color:#f59e0b}.st-Kabul{color:#10b981}
 
@@ -149,6 +156,93 @@
 	  #appsTable th, #appsTable td{ padding:10px 8px; font-size:14px; }
 	}
 	
+    /* --- Mobil geliştirmeler (responsive overrides) --- */
+    /* Daha esnek container: mobilde min 320px, geniş ekranda 1440px'e kadar */
+    .wrap{max-width:clamp(320px, 92vw, 1440px)}
+
+    /* Başlık ve alt başlık için kademeli boyutlar */
+    h1{font-size:clamp(20px, 4.5vw, 28px)}
+    .sub{font-size:clamp(12px, 3.4vw, 14px)}
+
+    /* Kart ve bölüm boşlukları mobilde biraz küçülsün */
+    @media (max-width: 640px){
+      .card .body{padding:16px}
+      .section{margin-top:16px}
+    }
+
+    /* Form grid tek sütuna daha erken geçsin, dokunma konforu artsın */
+    @media (max-width: 640px){
+      .row{grid-template-columns:1fr}
+      input,select,textarea{padding:14px 14px}
+    }
+
+    /* Üst aksiyonlar mobilde taşma yapmasın ve daha kompakt olsun */
+    @media (max-width: 640px){
+      header .actions{overflow:auto; gap:8px}
+      .btn{padding:10px 12px; font-size:13px}
+      .btn.sm{padding:6px 8px; font-size:12px}
+    }
+    @media (max-width: 520px){
+      .actions-cell .btn.sm{padding:6px}
+    }
+
+    /* Filtre alanı: çok küçük ekranlarda daha sıkı boşluk */
+    @media (max-width: 480px){
+      .filters{grid-template-columns:1fr; gap:8px}
+    }
+
+    /* Grafik yükseklikleri mobilde küçülsün */
+    @media (max-width: 600px){
+      #map{height:380px}
+      #trend{height:220px}
+    }
+    @media (max-width: 420px){
+      #map{height:320px}
+      #trend{height:200px}
+    }
+
+    /* Başvurular tablosu: çok dar ekranlarda ülke sütununu da gizle (4. sütun) */
+    @media (max-width: 600px){
+      #appsTable th:nth-child(4),
+      #appsTable td:nth-child(4){ display:none; }
+    }
+
+    /* Wishlist tablosu: mobilde kademeli sadeleştirme */
+    @media (max-width: 900px){
+      /* Notlar sütununu gizle (6. sütun) */
+      #wishTable th:nth-child(6),
+      #wishTable td:nth-child(6){ display:none; }
+    }
+    @media (max-width: 760px){
+      /* Şehir sütununu gizle (5. sütun) */
+      #wishTable th:nth-child(5),
+      #wishTable td:nth-child(5){ display:none; }
+    }
+    @media (max-width: 640px){
+      /* Ülke (4.) ve Link (8.) sütunlarını gizle */
+      #wishTable th:nth-child(4),
+      #wishTable td:nth-child(4),
+      #wishTable th:nth-child(8),
+      #wishTable td:nth-child(8){ display:none; }
+    }
+
+    /* Mobil detay satırı */
+    .mobile-more-row{display:none}
+    @media (max-width: 520px){
+      .mobile-more-row{display:table-row}
+      .mobile-more{padding:10px 12px; background:color-mix(in srgb, var(--bg) 96%, #0000); border-top:1px dashed var(--border); border-radius:8px}
+      .mobile-more .k{font-size:12px; color:#64748b}
+      .mobile-more .v{font-size:14px}
+    }
+
+    /* Yukarı Çık butonu */
+    .to-top{position:fixed;right:16px;bottom:16px;z-index:98;border:1px solid var(--border);background:var(--accent);color:#fff;width:44px;height:44px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 8px 24px rgba(2,6,23,.18);opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .2s, transform .2s, filter .15s}
+    .to-top.show{opacity:1;pointer-events:auto;transform:translateY(0)}
+    .to-top:hover{filter:brightness(1.05)}
+    .to-top:focus-visible{outline:none;box-shadow:0 8px 24px rgba(2,6,23,.18), 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent)}
+    .to-top:active{transform:translateY(1px)}
+    :root[data-theme="dark"] .to-top{background:#1f2937;color:#e5e7eb;border-color:#334155;box-shadow:0 8px 24px rgba(0,0,0,.35)}
+    :root[data-theme="dark"] .to-top:focus-visible{box-shadow:0 8px 24px rgba(0,0,0,.35), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent)}
   </style>
 </head>
 <body>
@@ -184,14 +278,14 @@
             </div>
             <div class="row">
               <div><label for="position">Pozisyon *</label><input id="position" placeholder="Örn: Embedded Engineer" required></div>
-              <div><label for="link">İlan / Form Linki</label><input id="link" placeholder="https://..."></div>
+              <div><label for="link">İlan / Form Linki</label><input id="link" placeholder="https://..." inputmode="url" autocomplete="url"></div>
             </div>
             <div class="row">
-              <div><label for="city">Şehir</label><input id="city" placeholder="Örn: Ankara"></div>
+              <div><label for="city">Şehir</label><input id="city" placeholder="Örn: Ankara" autocomplete="address-level2"></div>
               <div>
                 <label for="countrySearch">Ülke *</label>
                 <div class="combo" id="countryCombo" role="combobox" aria-expanded="false" aria-owns="countryListBox" aria-haspopup="listbox">
-                  <input id="countrySearch" class="combo-input" placeholder="Ülke ara veya seç" autocomplete="off" />
+                  <input id="countrySearch" class="combo-input" placeholder="Ülke ara veya seç" autocomplete="off" inputmode="search" />
                   <div id="countryListBox" class="combo-list" role="listbox"></div>
                 </div>
                 <input id="country" type="hidden" required />
@@ -333,7 +427,7 @@
               <div>
                 <label for="wCountrySearch">Ülke</label>
                 <div class="combo" id="wCountryCombo" role="combobox" aria-expanded="false" aria-owns="wCountryList" aria-haspopup="listbox">
-                  <input id="wCountrySearch" class="combo-input" placeholder="Ülke ara veya seç" autocomplete="off" />
+                  <input id="wCountrySearch" class="combo-input" placeholder="Ülke ara veya seç" autocomplete="off" inputmode="search" />
                   <div id="wCountryList" class="combo-list" role="listbox"></div>
                 </div>
                 <input id="wCountry" type="hidden" />
@@ -505,7 +599,15 @@
 				</svg>
 				<span class="label">Sil</span>
 			  </button>
-		  </td> `; tableBody.appendChild(tr) } }
+		  </td>`; tableBody.appendChild(tr);
+          // mobile details row
+          const mtr=document.createElement('tr');
+          mtr.className='mobile-more-row';
+          mtr.innerHTML=`<td colspan="10"><div class="mobile-more">
+            <div class="k">Notlar</div><div class="v">${escapeHtml(a.notes||'—')}</div>
+          </div></td>`;
+          tableBody.appendChild(mtr);
+        } }
 
     function countryCounts(apps){const c={}; for(const a of apps){const en=normalizeCountry(a.country); if(!en) continue; const mapName=toMapName(en); c[mapName]=(c[mapName]||0)+1} return c}
 
@@ -727,6 +829,12 @@
             <button class="btn" data-wdel="${w.id}">Sil</button>
           </td>`;
         wishTBody.appendChild(tr);
+        const mtr=document.createElement('tr');
+        mtr.className='mobile-more-row';
+        mtr.innerHTML=`<td colspan="9"><div class="mobile-more">
+          <div class="k">Notlar</div><div class="v">${escapeHtml(w.notes||'—')}</div>
+        </div></td>`;
+        wishTBody.appendChild(mtr);
       }
     }
 
@@ -852,6 +960,77 @@
 
     // Otomatik odak: şirket alanı
     if(company && company.focus) company.focus();
+
+    // Header hide-on-scroll (refined)
+    (function(){
+      const headerEl=document.querySelector('header');
+      if(!headerEl) return;
+
+      let lastY=window.scrollY||0;
+      let ticking=false;
+      let accum=0;
+      const SHOW_AFTER=18;   // px upward
+      const HIDE_AFTER=56;   // px downward
+      const ENABLE_MAX_WIDTH=1024; // only enable for mobile/tablet widths
+
+      function apply(y){
+        const dy=y-lastY; lastY=y; accum+=dy;
+        headerEl.classList.toggle('scrolled', y>2);
+
+        if(window.innerWidth>ENABLE_MAX_WIDTH){
+          headerEl.classList.remove('hide');
+          accum=0; return;
+        }
+
+        if(dy>0){ // scrolling down
+          if(accum>HIDE_AFTER && !headerEl.classList.contains('hide')){
+            headerEl.classList.add('hide'); accum=0;
+          }
+        } else if(dy<0){ // scrolling up
+          if(-accum>SHOW_AFTER && headerEl.classList.contains('hide')){
+            headerEl.classList.remove('hide'); accum=0;
+          }
+        }
+
+        if(y<8){ headerEl.classList.remove('hide'); accum=0; }
+      }
+
+      window.addEventListener('scroll', ()=>{
+        const y=window.scrollY||0;
+        if(!ticking){
+          window.requestAnimationFrame(()=>{ apply(y); ticking=false; });
+          ticking=true;
+        }
+      }, {passive:true});
+
+      // Interactions should show the header back
+      ['focusin','touchstart'].forEach(evt=>{
+        window.addEventListener(evt, ()=> headerEl.classList.remove('hide'), {passive:true});
+      });
+
+      // On resize, re-evaluate behavior quickly
+      window.addEventListener('resize', ()=>{
+        headerEl.classList.remove('hide');
+        headerEl.classList.toggle('scrolled', (window.scrollY||0)>2);
+        accum=0; lastY=window.scrollY||0;
+      });
+    })();
+
+    // Yukarı Çık butonu kontrolü (DOMContentLoaded sonrası kuruluyor)
+    document.addEventListener('DOMContentLoaded', function(){
+      const btn=document.getElementById('toTop');
+      if(!btn) return;
+      const SHOW_AFTER=300;
+      function update(){ btn.classList.toggle('show', (window.scrollY||0)>SHOW_AFTER); }
+      window.addEventListener('scroll', update, {passive:true});
+      window.addEventListener('resize', update, {passive:true});
+      btn.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); }, {passive:true});
+      update();
+    });
   </script>
+
+  <button id="toTop" class="to-top" title="Yukarı çık" aria-label="Yukarı çık" style="display:inline-flex">
+    ▲
+  </button>
 </body>
 </html>
